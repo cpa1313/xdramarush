@@ -61,6 +61,25 @@
     </script>
     <script src="data-part-1.js"></script>
     <script src="data.js"></script>
+    <script>
+    // Deploy resilience: if the data files didn't make it into the static upload
+    // (e.g. a partial deploy), load them from the GitHub CDN instead.
+    (function () {
+        var cdn = 'https://cdn.jsdelivr.net/gh/cpa1313/xdramarush@main/';
+        var noPart = typeof window.DB_DRAMAS_P1 === 'undefined';
+        var noData = typeof dramas === 'undefined';
+        if (noPart) {
+            document.write('<script src="' + cdn + 'data-part-1.js"><\/script>');
+            if (!noData) {
+                // data.js already ran with an empty part list — rebuild it in place
+                document.write('<script>dramas.length=0;dramas.push(...[...(window.DB_DRAMAS_P1||[]),...(window.DB_DRAMAS_P2||[]),...(window.DB_DRAMAS_P3||[])].sort((a,b)=>String(b.dateAdded||b.releaseDate||"").localeCompare(String(a.dateAdded||a.releaseDate||""))));<\/script>');
+            }
+        }
+        if (noData) {
+            document.write('<script src="' + cdn + 'data.js"><\/script>');
+        }
+    })();
+    </script>
     <style>
         :root { --bg-primary: #121212; --bg-secondary: #1e1e1e; --accent: #ff6b35; --text-primary: #ffffff; --text-secondary: #b3b3b3; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -300,7 +319,7 @@
             if (!VIEWS_API || viewsPromise) return viewsPromise || Promise.resolve({});
             // Seed from the static file first (instant), then overlay live counts
             // (worker hiccup → the seed is still there).
-            const seedP = fetch('views.json').then(r => r.ok ? r.json() : {}).catch(() => ({}));
+            const seedP = fetch('views.json').then(r => r.ok ? r.json() : Promise.reject(0)).catch(() => fetch('https://cdn.jsdelivr.net/gh/cpa1313/xdramarush@main/views.json').then(r => r.ok ? r.json() : {}).catch(() => ({})));
             viewsPromise = Promise.all([
                 seedP,
                 fetch(VIEWS_API + '/views').then(r => r.ok ? r.json() : {}).catch(() => ({})),
