@@ -98,6 +98,26 @@
            as the native player; JS toggles which of the two is visible. */
         #embedPlayer { width: 100%; height: 100%; border: 0; background: #000; display: none; }
 
+        /* Big center play overlay (from aistream watch.html v5.15). Desktop
+           browsers only show a tiny control-bar arrow on a paused <video>,
+           which is easy to miss — so we draw our own overlay whenever
+           playback is paused, same look as the mobile icon viewers know.
+           Real touch devices keep only their native icon (rule below hides
+           ours there); hidden while an embed mirror is up (that player
+           brings its own controls). */
+        .big-play { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: clamp(60px, 9vw, 92px); height: clamp(60px, 9vw, 92px); border-radius: 50%; background: rgba(0, 0, 0, 0.55); border: 2px solid rgba(255, 255, 255, 0.85); color: #fff; cursor: pointer; z-index: 6; align-items: center; justify-content: center; padding: 0; transition: background 0.2s, transform 0.2s; }
+        .big-play svg { width: 46%; height: 46%; fill: #fff; margin-left: 7%; pointer-events: none; }
+        .big-play:hover { background: rgba(0, 0, 0, 0.75); transform: translate(-50%, -50%) scale(1.06); }
+        .video-wrapper.paused .big-play { display: flex; }
+        /* phones/tablets draw their own native paused-video icon — don't
+           double up (desktop browsers never match this rule) */
+        @media (hover: none) and (pointer: coarse) {
+            .video-wrapper.paused .big-play { display: none; }
+        }
+        /* the embed iframe brings its own play controls — never stack our
+           overlay on top of it */
+        .video-wrapper.embed-active .big-play { display: none; }
+
         /* Fullscreen button for embed mirrors: Streamable's player hides
            fullscreen inside its settings gear on small screens, so we
            fullscreen the wrapper ourselves. Hidden unless the embed path is
@@ -221,7 +241,21 @@
 
                 <div class="video-wrapper">
                     <video id="videoPlayer" controls playsinline preload="metadata"></video>
-                    <iframe id="embedPlayer" allowfullscreen frameborder="0" referrerpolicy="origin"></iframe>
+                    <!-- Big center play button for mouse/desktop viewers
+                         (mobile keeps the browser's own icon). -->
+                    <button class="big-play" id="bigPlay" aria-label="Play episode" type="button">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
+                    <iframe id="embedPlayer" title="Episode player" scrolling="no"
+                            allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                            allowfullscreen referrerpolicy="strict-origin-when-cross-origin"
+                            sandbox="allow-scripts allow-same-origin allow-presentation allow-forms allow-modals"></iframe>
+                    <!-- sandbox omits allow-popups / allow-top-navigation: Streamable's
+                         free tier fires pop-under ad redirects on play; the sandbox
+                         blocks them so viewers always stay on xdramarush.live.
+                         Fullscreen still works (governed by allowfullscreen, not the
+                         sandbox). If Streamable ever needs popups legitimately, add
+                         "allow-popups" back. -->
                     <button id="embedFullscreen" title="Fullscreen" aria-label="Fullscreen">
                         <svg class="fs-expand" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
                         <svg class="fs-collapse" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
@@ -670,13 +704,15 @@
         }
 
         // ==========================================
-        // UPLOAD-HOSTED EMBEDS (Streamable etc.)
-        // Episodes can point at embed pages instead of HLS/MP4 URLs, e.g.
+        // UPLOAD-HOSTED SOURCES (Streamable etc.)
+        // Episodes you upload yourself can point at Streamable links, e.g.
         // https://streamable.com/e/9t47ph?loop=0 (the /e/<id> form is
-        // Streamable's official iframe player). These play in an <iframe>
-        // that shares the player box with the native <video>; exactly one of
-        // the two is visible at any moment. Plain Streamable watch URLs
-        // (streamable.com/<id>) are normalized to /e/<id> embeds.
+        // Streamable's official embed; plain watch URLs streamable.com/<id>
+        // and /o/<id> normalize to it). Streamable plays NATIVELY (see the
+        // resolver below); other embed pages (YouTube /embed/, Vimeo player,
+        // Dailymotion /embed/) play in an <iframe> that shares the player
+        // box with the native <video> — exactly one of the two is visible
+        // at any moment.
         // ==========================================
         function embedHost(url) {
             try { return (new URL(url, location.href).hostname || '').replace(/^www\./, ''); }
@@ -701,6 +737,64 @@
                 return url;
             }
             return url;
+        }
+
+        // --- Resolve a Streamable link to a playable MP4 ---------------------
+        // v5.14 (aistream) — Streamable plays NATIVELY, not in an iframe:
+        // Streamable's player posts no events to the parent page, so an
+        // embed can never tell us when the episode ends (no auto-advance),
+        // and nothing can start it from outside. Instead we resolve the link
+        // to its signed MP4 (ajax.streamable.com is CORS-open and hands out
+        // CDN links that stay valid ~3 days) and feed OUR <video>. The
+        // episode then behaves like every other native source: no autoplay
+        // on the first visit, tap-to-play, and 'ended' auto-advances to the
+        // next episode. The iframe embed above stays as the fallback for
+        // when the resolver fails (video removed, endpoint down).
+        function isStreamableUrl(url) {
+            return embedHost(url) === 'streamable.com';
+        }
+        function streamableId(url) {
+            try {
+                const p = new URL(url, location.href).pathname;
+                const m = p.match(/^\/(?:e|o)\/([A-Za-z0-9]+)\/?$/) || p.match(/^\/([A-Za-z0-9]+)\/?$/);
+                return m ? m[1] : '';
+            } catch { return ''; }
+        }
+        let streamableResolves = {};   // in-flight fetches, deduped per id
+        function resolveStreamable(url) {
+            const id = streamableId(url);
+            if (!id) return Promise.resolve(null);
+            // The CDN links are signed with an expiry (~3 days out); keep the
+            // resolved one in sessionStorage and only re-resolve when close
+            // to expiring, so revisits and mirror/episode switches within a
+            // tab never re-fetch.
+            try {
+                const c = JSON.parse(sessionStorage.getItem('streamableRes:' + id) || 'null');
+                if (c && c.u && c.exp > Date.now() + 60000) return Promise.resolve(c.u);
+            } catch {}
+            if (streamableResolves[id]) return streamableResolves[id];
+            streamableResolves[id] = fetch('https://ajax.streamable.com/videos/' + id)
+                .then(r => r.ok ? r.json() : Promise.reject(r.status))
+                .then(d => {
+                    const files = (d && d.files) || {};
+                    // Small screens get the same lighter encode Streamable's
+                    // own player serves them; everything else the standard MP4.
+                    const small = window.matchMedia && matchMedia('(max-width: 640px)').matches;
+                    const f = (small && files['mp4-mobile'] && files['mp4-mobile'].url) ||
+                              (files.mp4 && files.mp4.url) ||
+                              (files['mp4-mobile'] && files['mp4-mobile'].url) || '';
+                    if (!f) return null;
+                    const u = new URL(f, 'https://streamable.com/');   // //cdn... -> https://cdn...
+                    const expM = u.href.match(/Expires=(\d+)/);
+                    try {
+                        sessionStorage.setItem('streamableRes:' + id,
+                            JSON.stringify({ u: u.href, exp: expM ? Number(expM[1]) * 1000 : Date.now() + 3600000 }));
+                    } catch {}
+                    return u.href;
+                })
+                .catch(() => null)
+                .then(r => { delete streamableResolves[id]; return r; });
+            return streamableResolves[id];
         }
         let embedLoadTimer = null;
         function destroyEmbed() {
@@ -782,6 +876,41 @@
             }
         });
 
+        /* Autoplay policy (from aistream watch.html v5.14): NO autoplay when
+           a Streamable watch page is first opened (the viewer taps play,
+           exactly like the old embed behaved). Once anything has played this
+           visit — a manual tap or the auto-advance after 'ended' — playback
+           continues by itself for every following episode. All other sources
+           keep the existing behavior (start playing as soon as they load). */
+        let playbackStarted = false;
+        let currentSourceStreamable = false;
+        const videoPlayerEl = document.getElementById('videoPlayer');
+        videoPlayerEl.addEventListener('playing', () => { playbackStarted = true; });
+
+        /* Big center play overlay (from aistream watch.html v5.15). Visible
+           whenever the native player sits paused (before the first play,
+           mid-pause, and after 'ended'), hidden the moment playback runs.
+           Clicking it is a normal user-gesture play, so it also satisfies
+           the Streamable no-autoplay gate by hand. Mobile/touch devices are
+           untouched: CSS only reveals the overlay on (hover:hover)+
+           (pointer:fine), and those browsers keep drawing their own
+           paused-video icon. */
+        const bigPlayBtn = document.getElementById('bigPlay');
+        function syncBigPlay() {
+            videoWrap.classList.toggle('paused', videoPlayerEl.paused || videoPlayerEl.ended);
+        }
+        ['play', 'playing', 'pause', 'ended'].forEach(ev => videoPlayerEl.addEventListener(ev, syncBigPlay));
+        bigPlayBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (videoPlayerEl.src || videoPlayerEl.currentSrc) videoPlayerEl.play().catch(() => {});
+            else playCurrent();   // nothing loaded yet — kick the normal path
+        });
+        syncBigPlay();
+        function autoStart(video) {
+            if (currentSourceStreamable && !playbackStarted) return;
+            video.play().catch(() => {});
+        }
+
         function playNative(url, candidates) {
             // Native <video> playback (progressive MP4). One attempt per
             // candidate: on error, advance to the next mirror exactly like
@@ -803,7 +932,7 @@
             video.src = proxiedUrl(url);
             video.addEventListener('loadedmetadata', () => {
                 hideMsg();
-                video.play().catch(() => {});
+                autoStart(video);
             }, { once: true });
         }
 
@@ -824,18 +953,46 @@
 
             const url = candidates[activeMirror];
 
-            // Upload-hosted embed (Streamable etc.)? Swap the native player
-            // for the embed iframe. Mirror fallback cannot be auto-detected
-            // across iframes, so the embed is the last stop for this episode.
+            // Streamable link? Resolve it to a signed MP4 and play it
+            // natively (see the resolver block above): mirror fallback,
+            // tap-to-play and 'ended' auto-advance then all work exactly
+            // like every other native source. If the resolver fails, fall
+            // back to the embed iframe (a cross-origin player reports
+            // nothing, so there is no auto-advance there).
+            if (isStreamableUrl(url)) {
+                currentSourceStreamable = true;
+                destroyEmbed();   // restore the native <video> if an embed was up
+                resolveStreamable(url).then(mp4 => {
+                    if (mp4) startNative(mp4);
+                    else playEmbed(url);
+                });
+                return;
+            }
+            currentSourceStreamable = false;
+
+            // Any other upload-hosted embed (YouTube/Vimeo/Dailymotion
+            // forms)? Swap the native player for the embed iframe. Mirror
+            // fallback cannot be auto-detected across iframes, so the embed
+            // is the last stop for this episode.
             if (isEmbedUrl(url)) {
                 playEmbed(url);
                 return;
             }
             destroyEmbed();   // restore the native <video> when leaving an embed source
+            startNative(url);
+        }
+
+        // The native branches of playCurrent, split out so that resolved
+        // Streamable links re-enter the same mp4/hls pipeline (and its
+        // mirror fallback) unchanged.
+        function startNative(url) {
+            const video = document.getElementById('videoPlayer');
+            const candidates = candidatesFor(currentEpisode);
 
             if (/\.mp4($|\?)/.test(url)) {
-                // Progressive MP4 — play natively, no hls.js. Same
-                // mirror-fallback as the native HLS path.
+                // Progressive MP4 (CDN links and resolved Streamable links) —
+                // play natively, no hls.js. Same mirror-fallback as the
+                // native HLS path.
                 playNative(url, candidates);
                 return;
             }
@@ -853,7 +1010,7 @@
                 hls.attachMedia(video);
                 hls.on(Hls.Events.MANIFEST_PARSED, () => {
                     hideMsg();
-                    video.play().catch(() => {});
+                    autoStart(video);
                 });
                 hls.on(Hls.Events.FRAG_LOADED, () => hideMsg());
                 hls.on(Hls.Events.ERROR, (event, data) => {
@@ -920,7 +1077,7 @@
                 video.src = proxiedUrl(url);
                 video.addEventListener('loadedmetadata', () => {
                     hideMsg();
-                    video.play().catch(() => {});
+                    autoStart(video);
                 }, { once: true });
             } else {
                 showMsg('❌ HLS is not supported in this browser.', '#ff4444');
@@ -937,7 +1094,10 @@
             loadVideo(parseInt(ep));
         }
 
-        // Auto-play next episode when the current one finishes
+        // Auto-play next episode when the current one finishes. This covers
+        // Streamable sources too now: they play natively (resolved MP4), so
+        // their 'ended' reaches this listener like every other source, and
+        // the next episode starts through autoStart() above.
         document.getElementById('videoPlayer').addEventListener('ended', () => {
             const available = sources.length ? sources[0].length : 0;
             if (currentEpisode < available) {
