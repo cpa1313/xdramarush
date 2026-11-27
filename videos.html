@@ -318,7 +318,6 @@
         // Resolved episode sources: sources[mirrorIndex][episodeIndex] -> URL
         let sources = [];
         let activeMirror = 0;
-        let workerRetried = false;   // one worker-failover retry per episode start
 
         // ---- view counting (views-sync worker -> GitHub views.json) -------
         // One beacon per EPISODE START, not per page load: initial play,
@@ -347,65 +346,12 @@
         window.DB_EPS = window.DB_EPS || {};
         const chunkCache = {};
 
-        /* ============================================
-           SEGMENT PROXY (required for the CDNs below)
-           Some providers point video segments at a CDN that 403s any real
-           browser origin (or sends no CORS headers, which blocks hls.js).
-           Those segments are routed through a Cloudflare Worker proxy.
-           Playback STARTS on the first worker (priority) and flips to the
-           next entry when the current one fails (429 / unreachable); the
-           flip is sticky for the browser session. One failover retry per
-           episode start — see workerRetried below.
-           ============================================ */
-        const PROXY_WORKERS = [
-            'https://proxy7.zzzemaj13.workers.dev',          // proxy7 — PRIORITY
-            'https://proxy6.pinayfetishx1.workers.dev',      // second
-            'https://proxy5.webmasterjamez13.workers.dev',   // third
-            'https://proxy4.webmasterjamezzz.workers.dev',   // fourth
-            'https://proxy2.webmasterjamezzz13.workers.dev', // fifth
-            'https://long-snow-3e4b.cpagrid2.workers.dev',   // sixth
-            // Paste more workers from other free accounts here the same way.
-        ];
-        let _curWorker = -1;
-        try {
-            const saved = sessionStorage.getItem('proxyWorkerIdx');
-            // Deterministic priority: always START at the first entry; sticky
-            // flips move a failing session onward.
-            _curWorker = (saved !== null && Number(saved) < PROXY_WORKERS.length)
-                ? Number(saved)
-                : 0;
-        } catch { _curWorker = 0; }
-        function currentWorker() { return PROXY_WORKERS[_curWorker] || PROXY_WORKERS[0] || ''; }
-        function flipWorker() {
-            if (PROXY_WORKERS.length < 2) return false;   // nothing to flip to
-            _curWorker = (_curWorker + 1) % PROXY_WORKERS.length;
-            try { sessionStorage.setItem('proxyWorkerIdx', String(_curWorker)); } catch {}
-            return true;
-        }
-        const segmentProxyBase = () => currentWorker() ? currentWorker() + '/?u=' : '';
-        // The CDNs in this list 403/CORS-block direct browser requests —
-        // their .m3u8 playlists and segments go through the worker proxy.
-        const SEGMENT_PROXY_HOSTS = ['zshipricf.farsunpteltd.net', 'v.73920582.xyz', 'v.73920583.xyz', 'static.livoshort.com', 'static.miraluneshort.com', 'static.miralunedrama.com', 'static.cinerrashort.com', 'static.rivoshort.com', 'static.versevoyagetv.com', 'video-v1.mydramawave.com', 'v-mps.crazymaplestudios.com', 'acdn-v-us.stardust-tv.com', 'acdn-v.stardust-tv.com', 'cdn.my-muse.ai', 'dirjqbe1kaah2.cloudfront.net', 'cdn2.nsstorage.space'];
-        function proxiedUrl(url) {
-            const base0 = segmentProxyBase();
-            if (!base0) return url;
-            try {
-                if (!SEGMENT_PROXY_HOSTS.includes(new URL(url, location.href).hostname)) return url;
-                // accept a bare worker URL too — append the ?u= query name if it's missing
-                const base = /[?&]u=$/.test(base0)
-                    ? base0
-                    : base0.replace(/\/+$/, '') + '/?u=';
-                return base + encodeURIComponent(url);
-            } catch { return url; }
-        }
-        const SegmentProxyLoader = (window.Hls && window.Hls.DefaultConfig && window.Hls.DefaultConfig.loader)
-            ? class extends window.Hls.DefaultConfig.loader {
-                load(context, config, callbacks) {
-                    if (context && context.url) context.url = proxiedUrl(context.url);
-                    super.load(context, config, callbacks);
-                }
-            }
-            : null; // hls.js failed to load — fall back to its default loader
+        // Direct playback: the CDNs used in videos.json currently send
+        // access-control-allow-origin:* on playlists and segments, so hls.js
+        // loads everything straight from the source. (The old Cloudflare
+        // worker segment-proxy layer was removed; if a future CDN starts
+        // blocking browser origins, a proxy layer like the old one must be
+        // re-added here and wired into the Hls config below.)
 
         function loadChunkScript(n) {
             if (chunkCache[n]) return chunkCache[n];
@@ -702,7 +648,6 @@
         function loadVideo(ep) {
             currentEpisode = parseInt(ep) || 1;
             activeMirror = 0;
-            workerRetried = false;   // fresh failover budget per episode
             const available = sources.length ? sources[0].length : 0;
             if (currentEpisode > available) currentEpisode = available;
             if (available && currentEpisode >= 1) countView();  // 1 view = 1 episode started
@@ -936,7 +881,7 @@
                     showMsg('❌ Error: Video failed to load. Try another episode or come back later.', '#ff4444');
                 }
             }, { once: true });
-            video.src = proxiedUrl(url);
+            video.src = url;
             video.addEventListener('loadedmetadata', () => {
                 hideMsg();
                 autoStart(video);
@@ -1101,11 +1046,6 @@
             if (window.Hls && Hls.isSupported()) {
                 hls = new Hls({
                     xhrSetup: (xhr) => { xhr.withCredentials = false; },
-                    // pLoader is REQUIRED along with fLoader: hls.js loads the
-                    // master/level playlists via pLoader (fallback: `loader`),
-                    // never fLoader — fLoader alone leaves the first .m3u8
-                    // request going direct, which referer-locked CDNs 403.
-                    ...(SegmentProxyLoader ? { pLoader: SegmentProxyLoader, fLoader: SegmentProxyLoader } : {}),
                 });
                 hls.loadSource(url);
                 hls.attachMedia(video);
@@ -1129,44 +1069,19 @@
                         playNative(url, candidates);
                         return;
                     }
-                    // Worker failover FIRST: with priority picking a dead
-                    // worker (quota 429 / outage) must not kill playback on
-                    // single-mirror titles, for which the mirror-advance
-                    // branch below never runs. Flip to the next worker and
-                    // retry the SAME mirror once before touching mirrors.
-                    if (!workerRetried && PROXY_WORKERS.length > 1 && flipWorker()) {
-                        workerRetried = true;
-                        showMsg('Playback worker failed — switching to backup worker...');
-                        playCurrent();
-                        return;
-                    }
                     // Try the next mirror before giving up
                     if (activeMirror + 1 < candidates.length) {
                         activeMirror++;
                         showMsg(`Source failed, trying mirror ${activeMirror + 1}...`);
                         playCurrent();
                     } else {
-                        let failHost = '';
-                        try { failHost = data.frag && data.frag.url ? new URL(data.frag.url).hostname : ''; } catch {}
-                        if (!segmentProxyBase() && SEGMENT_PROXY_HOSTS.includes(failHost)) {
-                            showMsg('❌ Error: this title\'s video CDN blocks playback from hosted sites. Fix: deploy segment-proxy-worker.js (see README), then add its URL to PROXY_WORKERS in this file.', '#ff4444');
-                        } else {
-                            showMsg('❌ Error: Video failed to load (' + (data.details || 'network error') + '). Try another episode or come back later.', '#ff4444');
-                        }
+                        showMsg('❌ Error: Video failed to load (' + (data.details || 'network error') + '). Try another episode or come back later.', '#ff4444');
                     }
                 });
             } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                // iOS / Safari native HLS
-                // Worker failover first, then mirrors; the once-listener is
-                // re-armed for the retry attempt so a second failure can
-                // still advance mirrors.
+                // iOS / Safari native HLS: on failure advance mirrors,
+                // then give up.
                 const nativeFail = () => {
-                    if (!workerRetried && PROXY_WORKERS.length > 1 && flipWorker()) {
-                        workerRetried = true;
-                        video.addEventListener('error', nativeFail, { once: true });
-                        video.src = proxiedUrl(url);
-                        return;
-                    }
                     if (activeMirror + 1 < candidates.length) {
                         activeMirror++;
                         playCurrent();
@@ -1175,7 +1090,7 @@
                     }
                 };
                 video.addEventListener('error', nativeFail, { once: true });
-                video.src = proxiedUrl(url);
+                video.src = url;
                 video.addEventListener('loadedmetadata', () => {
                     hideMsg();
                     autoStart(video);
