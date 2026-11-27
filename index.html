@@ -59,25 +59,28 @@
       ]
     }
     </script>
-    <script src="data-part-1.js"></script>
-    <script src="data.js"></script>
     <script>
-    // Deploy resilience: if the data files didn't make it into the static upload
-    // (e.g. a partial deploy), load them from the GitHub CDN instead.
-    (function () {
-        var cdn = 'https://cdn.jsdelivr.net/gh/cpa1313/xdramarush@main/';
-        var noPart = typeof window.DB_DRAMAS_P1 === 'undefined';
-        var noData = typeof dramas === 'undefined';
-        if (noPart) {
-            document.write('<script src="' + cdn + 'data-part-1.js"><\/script>');
-            if (!noData) {
-                // data.js already ran with an empty part list — rebuild it in place
-                document.write('<script>dramas.length=0;dramas.push(...[...(window.DB_DRAMAS_P1||[]),...(window.DB_DRAMAS_P2||[]),...(window.DB_DRAMAS_P3||[])].sort((a,b)=>String(b.dateAdded||b.releaseDate||"").localeCompare(String(a.dateAdded||a.releaseDate||""))));<\/script>');
-            }
-        }
-        if (noData) {
-            document.write('<script src="' + cdn + 'data.js"><\/script>');
-        }
+    // ONE catalog file: videos.json holds every video — details, genres, ratings
+    // and the episode URLs. To add a video, append a record to videos.json.
+    var dramas = [];
+    var __pageReady = false, __dataReady = false;
+    function __tryInit() {
+        if (__pageReady && __dataReady && typeof window.__initPage === 'function') window.__initPage();
+    }
+    (function loadCatalog() {
+        // Safety net: if videos.json is missing from the upload, fall back to
+        // the copy served from the GitHub repo via jsDelivr.
+        const cdn = 'https://cdn.jsdelivr.net/gh/cpa1313/xdramarush@main/videos.json';
+        fetch('videos.json')
+            .then(r => r.ok ? r.json() : Promise.reject(0))
+            .catch(() => fetch(cdn).then(r => r.ok ? r.json() : []).catch(() => []))
+            .then(list => {
+                // Newest first: dateAdded (catalog add date) outranks releaseDate.
+                dramas = (list || []).slice().sort((a, b) =>
+                    String(b.dateAdded || b.releaseDate || '').localeCompare(String(a.dateAdded || a.releaseDate || '')));
+                __dataReady = true;
+                __tryInit();
+            });
     })();
     </script>
     <style>
@@ -209,7 +212,7 @@
                 <div class="nav-menu" id="navPlatforms"></div>
             </div>
             <a class="nav-link" href="index.html?sort=new">New</a>
-            <a class="nav-link" href="index.html?sort=rankings">Ratings</a>
+            <a class="nav-link" href="index.html?sort=rankings">Unc3ns0r3d</a>
         </nav>
     </header>
 
@@ -227,7 +230,7 @@
         <div class="sort-tabs" id="sortTabs" role="tablist">
             <button class="sort-tab" data-sort="new" onclick="setSort('new')">✨ New</button>
             <button class="sort-tab active" data-sort="popular" onclick="setSort('popular')">🔥 Popular</button>
-            <button class="sort-tab" data-sort="rankings" onclick="setSort('rankings')">🏆 Ratings</button>
+            <button class="sort-tab" data-sort="rankings" onclick="setSort('rankings')">❤️‍🔥 Unc3ns0r3d</button>
         </div>
         <h2 id="sectionTitle" style="margin-bottom: 1.5rem;">Popular Dramas</h2>
         <div class="drama-grid" id="dramaGrid"></div>
@@ -275,7 +278,7 @@
         let currentPlatform = '';  // set via ?platform= deep link from the nav menu
         let currentSort = 'popular';
 
-        const SORT_LABELS = { popular: 'Popular Dramas', new: 'Latest Releases', rankings: 'Top Ratings' };
+        const SORT_LABELS = { popular: 'Popular Dramas', new: 'Latest Releases', rankings: 'Unc3ns0r3d' };
 
         // Display names for the platforms in the starter drop (nav menu + card meta)
         const PLATFORM_LABELS = { reelshort: 'ReelShort', dramawave: 'DramaWave', miraluneshort: 'MiraLune Short', cinerra: 'Cinerra', flickreels: 'FlickReels', dramabox: 'DramaBox' };
@@ -325,7 +328,7 @@
                 fetch(VIEWS_API + '/views').then(r => r.ok ? r.json() : {}).catch(() => ({})),
             ]).then(([seed, live]) => {
                 viewCounts = Object.assign({}, seed, live);
-                if (currentSort === 'popular') renderHome();
+                if (currentSort === 'popular' || currentSort === 'rankings') renderHome();
                 return viewCounts;
             });
             return viewsPromise;
@@ -358,7 +361,7 @@
         }
 
         // ===== Hero carousel: the highest-rated titles of the fresh drop =====
-        (function buildHero() {
+        function buildHero() {
             const hero = document.getElementById('hero');
             const card = document.getElementById('heroCard');
             const dotsEl = document.getElementById('heroDots');
@@ -412,7 +415,7 @@
             renderSlide(slides[0]);
             dotEls[0] && dotEls[0].classList.add('active');
             restart();
-        })();
+        }
 
         // ===== Search / sort / genre state =====
         function handleSearch() {
@@ -476,12 +479,17 @@
                 );
             }
 
+            // The Unc3ns0r3d tab (the former Ratings) lists titles tagged with the genre
+            if (currentSort === 'rankings') {
+                filtered = filtered.filter(d => genreNames(d).includes('Unc3ns0r3d'));
+            }
+
             let ranked = filtered;
             if (currentSort === 'popular') {
                 ranked = filtered.slice().sort(Object.keys(viewCounts).length ? byViews : byRating);
             } else if (currentSort === 'rankings') {
-                // rating first, views break the ties
-                ranked = filtered.slice().sort(byRatingThenViews);
+                // Unc3ns0r3d tab: most-viewed like Popular — no rating sorting
+                ranked = filtered.slice().sort(Object.keys(viewCounts).length ? byViews : byRating);
             }
 
             const titleEl = document.getElementById('sectionTitle');
@@ -504,15 +512,11 @@
                 card.className = 'drama-card';
                 card.href = watchUrl(drama.slug);
 
-                // Badges: Ratings shows "9.4 · 12K views"; Popular and New show
-                // a views-only chip. Titles with no views yet (brand-new adds,
-                // or the counter being unreachable) show just the rating.
+                // Badges: every tab shows the same views-only chip (no rating
+                // numbers anywhere). Titles with no views yet show no badge.
                 let rankHtml = '';
                 const v = viewCounts[drama.slug] || 0;
-                if (currentSort === 'rankings') {
-                    const vw = v > 0 ? `<span class="rank-vw">${fmtViews(v)} views</span>` : '';
-                    rankHtml = `<span class="rank-badge">${drama.rating ? drama.rating.toFixed(1) : '0'}${vw}</span>`;
-                } else if (v > 0) {
+                if (v > 0) {
                     rankHtml = `<span class="rank-badge vw-only"><span class="rank-vw">${fmtViews(v)} views</span></span>`;
                 }
                 const genreHtml = genreNames(drama).slice(0, 2).map(g => `<span class="genre-tag" data-g="${g}" onclick="event.preventDefault(); event.stopPropagation(); setGenre(this.dataset.g)">${g}</span>`).join('');
@@ -608,7 +612,7 @@
             });
         });
 
-        window.addEventListener('DOMContentLoaded', () => {
+        window.__initPage = function () {
             buildNavMenus();
 
             // Deep links: index.html?genre=... / ?search=... / ?platform=... / ?sort=new
@@ -634,7 +638,7 @@
                 currentSort = wantedSort;
                 document.querySelectorAll('#sortTabs .sort-tab').forEach(b => b.classList.toggle('active', b.dataset.sort === wantedSort));
             }
-            // Highlight the active New/Ratings nav link
+            // Highlight the active New/Unc3ns0r3d nav link
             document.querySelectorAll('#mainNav .nav-link').forEach(a => {
                 const s = a.search ? new URLSearchParams(a.search).get('sort') : null;
                 a.classList.toggle('active', !!s && s === currentSort);
@@ -665,7 +669,12 @@
             } else if (mobileViewport.addListener) { // older Safari
                 mobileViewport.addListener(placeGenreBar);
             }
-        });
+
+            // Hero carousel + SEO link list also need the catalog loaded
+            buildHero();
+            if (window.renderSeoLinks) window.renderSeoLinks();
+        };
+        document.addEventListener('DOMContentLoaded', () => { __pageReady = true; __tryInit(); });
     </script>
 
     <section class="seo-block">
@@ -676,8 +685,11 @@
     </section>
     <script>
         // Keep the SEO links in sync with the catalog — no stale slugs, ever.
-        document.getElementById('seoLinks').innerHTML = dramas.map(d =>
-            `<a href="${watchUrl(d.slug)}">Full ${d.title.replace(/</g, '&lt;')}</a>`).join('');
+        // Runs from __initPage() once videos.json is loaded.
+        window.renderSeoLinks = function () {
+            document.getElementById('seoLinks').innerHTML = dramas.map(d =>
+                `<a href="${watchUrl(d.slug)}">Full ${d.title.replace(/</g, '&lt;')}</a>`).join('');
+        };
     </script>
 
     <footer class="site-footer">

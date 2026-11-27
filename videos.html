@@ -30,25 +30,28 @@
     }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <script src="data-part-1.js"></script>
-    <script src="data.js"></script>
     <script>
-    // Deploy resilience: if the data files didn't make it into the static upload
-    // (e.g. a partial deploy), load them from the GitHub CDN instead.
-    (function () {
-        var cdn = 'https://cdn.jsdelivr.net/gh/cpa1313/xdramarush@main/';
-        var noPart = typeof window.DB_DRAMAS_P1 === 'undefined';
-        var noData = typeof dramas === 'undefined';
-        if (noPart) {
-            document.write('<script src="' + cdn + 'data-part-1.js"><\/script>');
-            if (!noData) {
-                // data.js already ran with an empty part list — rebuild it in place
-                document.write('<script>dramas.length=0;dramas.push(...[...(window.DB_DRAMAS_P1||[]),...(window.DB_DRAMAS_P2||[]),...(window.DB_DRAMAS_P3||[])].sort((a,b)=>String(b.dateAdded||b.releaseDate||"").localeCompare(String(a.dateAdded||a.releaseDate||""))));<\/script>');
-            }
-        }
-        if (noData) {
-            document.write('<script src="' + cdn + 'data.js"><\/script>');
-        }
+    // ONE catalog file: videos.json holds every video — details, genres, ratings
+    // and the episode URLs. To add a video, append a record to videos.json.
+    var dramas = [];
+    var __pageReady = false, __dataReady = false;
+    function __tryInit() {
+        if (__pageReady && __dataReady && typeof window.__initPage === 'function') window.__initPage();
+    }
+    (function loadCatalog() {
+        // Safety net: if videos.json is missing from the upload, fall back to
+        // the copy served from the GitHub repo via jsDelivr.
+        const cdn = 'https://cdn.jsdelivr.net/gh/cpa1313/xdramarush@main/videos.json';
+        fetch('videos.json')
+            .then(r => r.ok ? r.json() : Promise.reject(0))
+            .catch(() => fetch(cdn).then(r => r.ok ? r.json() : []).catch(() => []))
+            .then(list => {
+                // Newest first: dateAdded (catalog add date) outranks releaseDate.
+                dramas = (list || []).slice().sort((a, b) =>
+                    String(b.dateAdded || b.releaseDate || '').localeCompare(String(a.dateAdded || a.releaseDate || '')));
+                __dataReady = true;
+                __tryInit();
+            });
     })();
     </script>
     <style>
@@ -221,7 +224,7 @@
                 <div class="nav-menu" id="navPlatforms"></div>
             </div>
             <a class="nav-link" href="index.html?sort=new">New</a>
-            <a class="nav-link" href="index.html?sort=rankings">Ratings</a>
+            <a class="nav-link" href="index.html?sort=rankings">Unc3ns0r3d</a>
         </nav>
     </header>
 
@@ -482,7 +485,7 @@
                     .map(([p, c]) => `<a href="index.html?platform=${encodeURIComponent(p)}">${platformLabel(p)}<span class="cnt">${c}</span></a>`).join('');
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
+        window.__initPage = function () {
             buildNavMenus();
             const urlParams = new URLSearchParams(window.location.search);
             const slug = urlParams.get('slug');
@@ -504,7 +507,8 @@
             } else {
                 window.location.href = 'index.html';
             }
-        });
+        };
+        document.addEventListener('DOMContentLoaded', () => { __pageReady = true; __tryInit(); });
 
         // Sidebar: the rest of the fresh drop (every other title in the catalog)
         function renderRelated(drama) {
