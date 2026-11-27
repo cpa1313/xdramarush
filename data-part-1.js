@@ -75,5 +75,291 @@ window.DB_DRAMAS_P1.push(
 "https://streamable.com/6fb8k6?loop=0",
 "https://streamable.com/xkt5hu?loop=0"
 ]
+ },
+ {
+  "id": "rex-s-law",
+  "title": "Rex's Law",
+  "slug": "rex-s-law",
+  "platform": "suikie",
+  "episodes": 20,
+  "cover": "https://suikora.com/img/posters/984bdc0ce6db3801-480.webp",
+  "description": "A new warden brings iron-fisted discipline to a women's prison, but an inmate with bold ambitions refuses to back down. When her dangerous scheme spirals out of control, the clash between authority and rebellion ignites a deadly game of power that will shake the entire facility.",
+  "about": "",
+  "genres": [
+   "Family Drama", "Unc3ns0r3d",
+   "Action"
+  ],
+  "rating": null,
+  "releaseDate": "2026-10-21T22:07:03.049Z",
+  "dubbed": false,
+  "source": "suikie",
+  "urls": [
+   "https://streamable.com/dxfn57?loop=0",
+"https://streamable.com/mi26q9?loop=0",
+"https://streamable.com/t20ulz?loop=0",
+"https://streamable.com/2xnb4c?loop=0",
+"https://streamable.com/20e7ig?loop=0",
+"https://streamable.com/t8gur4?loop=0",
+"https://streamable.com/ncglyv?loop=0",
+"https://streamable.com/vb3dgy?loop=0",
+"https://streamable.com/271u1d?loop=0",
+"https://streamable.com/gctpny?loop=0",
+"https://streamable.com/iz8paz?loop=0",
+"https://streamable.com/5y7i6p?loop=0",
+"https://streamable.com/1b5117?loop=0",
+"https://streamable.com/ep6q89?loop=0",
+"https://streamable.com/r83gum?loop=0",
+"https://streamable.com/nou9np?loop=0",
+"https://streamable.com/u8h83p?loop=0",
+"https://streamable.com/3lfazr?loop=0",
+"https://streamable.com/ya08xc?loop=0",
+"https://streamable.com/nnxwrf?loop=0"
+
+  ],
+  "subtitles": [
+   "https://suikora.com/s/pLxksXs3C73HUj9B/sub",
+   "https://suikora.com/s/tot1iaeHt2iQKt3T/sub",
+   "https://suikora.com/s/R8AltD1IVRW6Klcc/sub",
+   "https://suikora.com/s/eNluxQ0zKFo-zdkj/sub",
+   "https://suikora.com/s/9AYs9PRgRJAFKlTV/sub",
+   "https://suikora.com/s/qkzVBHC_ODamyA7N/sub",
+   "https://suikora.com/s/tBT6S3JEW7gafzPU/sub",
+   "https://suikora.com/s/Xygcp9WMJunMeAtE/sub",
+   "https://suikora.com/s/nfJinH8WfNoPrEA-/sub",
+   "https://suikora.com/s/nMU6MLyfDzZOaxlL/sub",
+   "https://suikora.com/s/QjNgrdhdhdQOShfv/sub",
+   "https://suikora.com/s/wO8pApnmnv4oGYDB/sub",
+   "https://suikora.com/s/ZgkG1cO97wKOACX2/sub",
+   "https://suikora.com/s/tQCRKzoWXQpDtW4V/sub",
+   "https://suikora.com/s/kzLI7hSEKED0SWD1/sub",
+   "https://suikora.com/s/b5pOOOnt8UzVF7Wl/sub",
+   "https://suikora.com/s/XB_CRqzDz-zIO06I/sub",
+   "https://suikora.com/s/mpIave4gEzWdaQ5D/sub",
+   "https://suikora.com/s/ybiTCtt-PTsKiTU3/sub",
+   "https://suikora.com/s/cMTh-d6ZIYo6joxt/sub"
+  ],
+  "servers": [
+   [
+    {
+     "id": 36082,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "pLxksXs3C73HUj9B",
+     "subtitleUrl": "/s/pLxksXs3C73HUj9B/sub",
+     "subtitleLang": "en"
+    }
+   ],
+   [
+    {
+     "id": 36083,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "tot1iaeHt2iQKt3T",
+     "subtitleUrl": "/s/tot1iaeHt2iQKt3T/sub",
+     "subtitleLang": "en"
+    }
+   ],
+   [
+    {
+     "id": 36084,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "R8AltD1IVRW6Klcc",
+     "subtitleUrl": "/s/R8AltD1IVRW6Klcc/sub",
+     "subtitleLang": "en"
+    }
+   ],
+   [
+    {
+     "id": 36085,
+     "name": "Suikora S2",
+     "type": "mp4",
+     "url": "",
+     "hash": "eNluxQ0zKFo-zdkj",
+     "subtitleUrl": "/s/eNluxQ0zKFo-zdkj/sub",
+     "subtitleLang": null
+    }
+   ],
+   [
+    {
+     "id": 36086,
+     "name": "Suikora S2",
+     "type": "mp4",
+     "url": "",
+     "hash": "9AYs9PRgRJAFKlTV",
+     "subtitleUrl": "/s/9AYs9PRgRJAFKlTV/sub",
+     "subtitleLang": null
+    }
+   ],
+   [
+    {
+     "id": 36087,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "qkzVBHC_ODamyA7N",
+     "subtitleUrl": "/s/qkzVBHC_ODamyA7N/sub",
+     "subtitleLang": null
+    }
+   ],
+   [
+    {
+     "id": 36088,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "tBT6S3JEW7gafzPU",
+     "subtitleUrl": "/s/tBT6S3JEW7gafzPU/sub",
+     "subtitleLang": null
+    }
+   ],
+   [
+    {
+     "id": 36089,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "Xygcp9WMJunMeAtE",
+     "subtitleUrl": "/s/Xygcp9WMJunMeAtE/sub",
+     "subtitleLang": null
+    }
+   ],
+   [
+    {
+     "id": 36090,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "nfJinH8WfNoPrEA-",
+     "subtitleUrl": "/s/nfJinH8WfNoPrEA-/sub",
+     "subtitleLang": null
+    }
+   ],
+   [
+    {
+     "id": 36091,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "nMU6MLyfDzZOaxlL",
+     "subtitleUrl": "/s/nMU6MLyfDzZOaxlL/sub",
+     "subtitleLang": null
+    }
+   ],
+   [
+    {
+     "id": 36092,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "QjNgrdhdhdQOShfv",
+     "subtitleUrl": "/s/QjNgrdhdhdQOShfv/sub",
+     "subtitleLang": null
+    }
+   ],
+   [
+    {
+     "id": 36093,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "wO8pApnmnv4oGYDB",
+     "subtitleUrl": "/s/wO8pApnmnv4oGYDB/sub",
+     "subtitleLang": null
+    }
+   ],
+   [
+    {
+     "id": 36094,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "ZgkG1cO97wKOACX2",
+     "subtitleUrl": "/s/ZgkG1cO97wKOACX2/sub",
+     "subtitleLang": null
+    }
+   ],
+   [
+    {
+     "id": 36095,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "tQCRKzoWXQpDtW4V",
+     "subtitleUrl": "/s/tQCRKzoWXQpDtW4V/sub",
+     "subtitleLang": null
+    }
+   ],
+   [
+    {
+     "id": 36096,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "kzLI7hSEKED0SWD1",
+     "subtitleUrl": "/s/kzLI7hSEKED0SWD1/sub",
+     "subtitleLang": null
+    }
+   ],
+   [
+    {
+     "id": 36097,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "b5pOOOnt8UzVF7Wl",
+     "subtitleUrl": "/s/b5pOOOnt8UzVF7Wl/sub",
+     "subtitleLang": null
+    }
+   ],
+   [
+    {
+     "id": 36098,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "XB_CRqzDz-zIO06I",
+     "subtitleUrl": "/s/XB_CRqzDz-zIO06I/sub",
+     "subtitleLang": null
+    }
+   ],
+   [
+    {
+     "id": 36099,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "mpIave4gEzWdaQ5D",
+     "subtitleUrl": "/s/mpIave4gEzWdaQ5D/sub",
+     "subtitleLang": null
+    }
+   ],
+   [
+    {
+     "id": 36100,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "ybiTCtt-PTsKiTU3",
+     "subtitleUrl": "/s/ybiTCtt-PTsKiTU3/sub",
+     "subtitleLang": null
+    }
+   ],
+   [
+    {
+     "id": 36101,
+     "name": "Suikora S2",
+     "type": "hls",
+     "url": "",
+     "hash": "cMTh-d6ZIYo6joxt",
+     "subtitleUrl": "/s/cMTh-d6ZIYo6joxt/sub",
+     "subtitleLang": null
+    }
+   ]
+  ],
+  "dateAdded": "2026-11-20T08:22:45Z"
  }
 );
