@@ -149,6 +149,8 @@
         .episode-navigation { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; align-items: center; }
         .nav-btn { padding: 0.75rem 1.25rem; background: var(--accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1rem; }
         .nav-btn:disabled { background: #444; color: #888; cursor: not-allowed; }
+        .cc-btn { background: var(--bg-primary); color: var(--text-secondary); border: 1px solid #333; }
+        .cc-btn.cc-on { background: var(--accent); color: white; border-color: var(--accent); }
         .episode-select { flex: 1; padding: 0.75rem; background: var(--bg-primary); color: var(--text-primary); border: 1px solid #333; border-radius: 6px; font-size: 1rem; cursor: pointer; min-width: 150px; }
 
         .episode-toggle { background: transparent; border: 1px solid var(--text-secondary); color: var(--text-secondary); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
@@ -275,6 +277,7 @@
                         <button class="nav-btn" id="prevBtn" onclick="changeEpisode(-1)">Previous ⏮</button>
                         <select class="episode-select" id="episodeSelect" onchange="jumpToEpisode(this.value)"></select>
                         <button class="nav-btn" id="nextBtn" onclick="changeEpisode(1)">Next ⏭</button>
+                        <button class="nav-btn cc-btn" id="ccBtn" onclick="toggleCc()" title="Subtitles on/off" style="display:none">CC</button>
                     </div>
                     <div class="episode-grid" id="episodeGrid"></div>
                 </div>
@@ -940,6 +943,97 @@
             }, { once: true });
         }
 
+        // ==========================================
+        // SUBTITLES — optional per-episode caption tracks.
+        // drama.subtitles = [ep1Url, ep2Url, ...] (an object {"1": url} also
+        // works). WebVTT plays as-is; SRT is detected and converted in the
+        // browser. Same-origin .vtt files (hosted next to videos.json) and
+        // CORS-enabled hosts both work; if a host blocks the track the CC
+        // button simply hides and playback continues untouched.
+        // ==========================================
+        let subTrackEl = null;
+        let subBlobUrl = null;
+        let ccOn = true;
+        try { ccOn = localStorage.getItem('xd_subs') !== 'off'; } catch {}
+
+        function episodeSubtitleUrl(drama, ep) {
+            const list = drama && drama.subtitles;
+            if (!list) return '';
+            return list[ep - 1] || list[String(ep)] || '';
+        }
+
+        function srtToVtt(txt) {
+            // Minimal SRT → WebVTT: add the header and switch the
+            // millisecond comma to a dot. The leading cue numbers are
+            // valid WebVTT cue identifiers, so they can stay.
+            return 'WEBVTT\n\n' + txt.replace(/^\uFEFF/, '')
+                .replace(/(\d\d:\d\d:\d\d),(\d\d\d)/g, '$1.$2');
+        }
+
+        function clearSubtitles(hideBtn) {
+            const video = document.getElementById('videoPlayer');
+            video.querySelectorAll('track[kind="subtitles"]').forEach(tr => tr.remove());
+            subTrackEl = null;
+            if (subBlobUrl) { URL.revokeObjectURL(subBlobUrl); subBlobUrl = null; }
+            const btn = document.getElementById('ccBtn');
+            if (btn) btn.style.display = hideBtn ? 'none' : '';
+        }
+
+        function syncCcBtn() {
+            const btn = document.getElementById('ccBtn');
+            if (!btn) return;
+            // HTMLTrackElement.readyState: 2 = LOADED
+            const loaded = subTrackEl && subTrackEl.readyState === 2;
+            btn.style.display = loaded ? '' : 'none';
+            btn.classList.toggle('cc-on', !!(loaded && ccOn));
+            if (subTrackEl && subTrackEl.track) subTrackEl.track.mode = ccOn ? 'showing' : 'disabled';
+        }
+
+        function appendTrack(src) {
+            const video = document.getElementById('videoPlayer');
+            video.querySelectorAll('track[kind="subtitles"]').forEach(tr => tr.remove());
+            const tr = document.createElement('track');
+            tr.kind = 'subtitles';
+            tr.label = 'English';
+            tr.srclang = 'en';
+            tr.src = src;
+            tr.addEventListener('load', () => { if (subTrackEl === tr) syncCcBtn(); }, { once: true });
+            tr.addEventListener('error', () => {
+                // Host sends no CORS headers (or file missing) — captions are
+                // impossible in the browser; hide the button, keep playing.
+                tr.remove();
+                if (subTrackEl === tr) { subTrackEl = null; syncCcBtn(); }
+            }, { once: true });
+            video.appendChild(tr);
+            subTrackEl = tr;
+            syncCcBtn();
+        }
+
+        function attachSubtitles() {
+            const url = episodeSubtitleUrl(currentDrama, currentEpisode);
+            if (!url) { clearSubtitles(true); return; }
+            // Fetch first: lets us convert SRT to VTT (and works for
+            // same-origin files). If the fetch is CORS-blocked we still
+            // append a direct <track> — browsers that accept the host will
+            // use it, the rest fire 'error' and the CC button hides.
+            fetch(url, { mode: 'cors' })
+                .then(r => r.ok ? r.text() : Promise.reject(r.status))
+                .then(txt => {
+                    let vtt = txt.replace(/^\uFEFF/, '');
+                    if (!/^\s*WEBVTT/.test(vtt)) vtt = srtToVtt(vtt);
+                    if (subBlobUrl) URL.revokeObjectURL(subBlobUrl);
+                    subBlobUrl = URL.createObjectURL(new Blob([vtt], { type: 'text/vtt' }));
+                    appendTrack(subBlobUrl);
+                })
+                .catch(() => appendTrack(url));
+        }
+
+        function toggleCc() {
+            ccOn = !ccOn;
+            try { localStorage.setItem('xd_subs', ccOn ? 'on' : 'off'); } catch {}
+            syncCcBtn();
+        }
+
         function playCurrent() {
             const video = document.getElementById('videoPlayer');
             const candidates = candidatesFor(currentEpisode);
@@ -954,6 +1048,7 @@
             video.removeAttribute('src');
             video.load();
             destroyHls();
+            clearSubtitles(true);   // per-episode CC reset until a track is usable
 
             const url = candidates[activeMirror];
 
@@ -967,8 +1062,8 @@
                 currentSourceStreamable = true;
                 destroyEmbed();   // restore the native <video> if an embed was up
                 resolveStreamable(url).then(mp4 => {
-                    if (mp4) startNative(mp4);
-                    else playEmbed(url);
+                    if (mp4) { startNative(mp4); attachSubtitles(); }
+                    else { playEmbed(url); }   // embed UI — attachSubtitles never runs, CC stays hidden
                 });
                 return;
             }
@@ -980,10 +1075,12 @@
             // is the last stop for this episode.
             if (isEmbedUrl(url)) {
                 playEmbed(url);
+                clearSubtitles(true);   // embed UI — no native track to attach
                 return;
             }
             destroyEmbed();   // restore the native <video> when leaving an embed source
             startNative(url);
+            attachSubtitles();
         }
 
         // The native branches of playCurrent, split out so that resolved
