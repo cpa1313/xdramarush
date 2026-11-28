@@ -212,6 +212,7 @@
         .np-text { flex: 1; min-width: 0; }
         @media (max-width: 640px) { .np-cover { width: 86px; } }
     </style>
+    <script src="counter.js"></script>
 </head>
 <body>
 <!-- ads -->
@@ -330,19 +331,20 @@
         let sources = [];
         let activeMirror = 0;
 
-        // ---- view counting (views-sync worker -> GitHub views.json) -------
+        // ---- view counting (Firebase Realtime Database via counter.js) ----
         // One beacon per EPISODE START, not per page load: initial play,
         // prev/next, episode grid/select and auto-advance all funnel through
         // loadVideo(), so every episode a viewer actually plays counts as one
         // view of that drama. Mirror-failure retries re-call playCurrent()
         // directly and never pass through loadVideo(), so one episode start
-        // counts exactly once.
-        const VIEWS_API = 'https://views-sync.cpagrid2.workers.dev';
+        // counts exactly once. counter.js batches the visit's counts and
+        // flushes them to Firebase once (8s after the first click, or when
+        // the page is closed); a batch that cannot be delivered retries on
+        // the next visit.
         function countView() {
-            if (!VIEWS_API || !currentDrama || !currentDrama.slug) return;
+            if (!currentDrama || !currentDrama.slug) return;
             try {
-                fetch(`${VIEWS_API}/view?slug=${encodeURIComponent(currentDrama.slug)}`,
-                      { keepalive: true }).catch(() => {});
+                if (window.siteCounter) window.siteCounter.countView(currentDrama.slug);
             } catch (e) {}
         }
 

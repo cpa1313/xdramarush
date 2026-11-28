@@ -197,6 +197,7 @@
         .footer-note { flex-basis: 100%; color: #777; font-size: 0.8rem; }
     </style>
 	<meta name="ppck-ver" content="c34af4f81aeba05f5e75227bd3fb37e4" />
+    <script src="counter.js"></script>
 </head>
 <body>
     <header>
@@ -313,25 +314,63 @@
             });
         }
 
-        // ---- view counts (live counter worker, seeded from static views.json) ----
-        // With no counts yet it falls back to rating order, so a fresh site
-        // still shows a sensible Popular tab.
-        const VIEWS_API = 'https://viewscounter.webmasterjamezzz13.workers.dev';
+        // ---- view counts (Firebase Realtime Database via counter.js) ----
+        // Popular/Unc3ns0r3d order = most episode-starts first, read live
+        // from the same Firebase counter that counter.js writes to. One
+        // REST GET of the whole views map per page load, no token needed.
+        // The localStorage cache paints the chips instantly (and fills them
+        // when Firebase is unreachable); the views.json seed fills the gap
+        // on a cold site; Firebase always wins once its fetch lands. With
+        // NO counts at all the tab falls back to rating order, so a fresh
+        // site still shows a sensible Popular tab.
+        const VIEWS_FILE = 'views.json';
+        const VIEWS_CACHE_KEY = 'viewsCacheV2';
         let viewCounts = {};    // slug -> view count
         let viewsPromise = null;
+        function usableMap(m) {
+            return !!m && typeof m === 'object' && Object.keys(m).length > 0;
+        }
+        function readViewsCache() {
+            try {
+                const c = JSON.parse(localStorage.getItem(VIEWS_CACHE_KEY) || 'null');
+                return (c && typeof c === 'object' && usableMap(c.d)) ? c.d : null;
+            } catch { return null; }
+        }
+        function saveViewsCache(map) {
+            try { localStorage.setItem(VIEWS_CACHE_KEY, JSON.stringify({ t: Date.now(), d: map })); } catch {}
+        }
         function loadViews() {
-            if (!VIEWS_API || viewsPromise) return viewsPromise || Promise.resolve({});
-            // Seed from the static file first (instant), then overlay live counts
-            // (worker hiccup → the seed is still there).
-            const seedP = fetch('views.json').then(r => r.ok ? r.json() : Promise.reject(0)).catch(() => fetch('https://cdn.jsdelivr.net/gh/cpa1313/xdramarush@main/views.json').then(r => r.ok ? r.json() : {}).catch(() => ({})));
-            viewsPromise = Promise.all([
-                seedP,
-                fetch(VIEWS_API + '/views').then(r => r.ok ? r.json() : {}).catch(() => ({})),
-            ]).then(([seed, live]) => {
-                viewCounts = Object.assign({}, seed, live);
+            if (viewsPromise) return viewsPromise;
+            // Instant paint from the last cache (offline fallback / fast chips);
+            // the fresh Firebase map re-renders over it when it lands.
+            const stale = readViewsCache();
+            if (stale) {
+                viewCounts = stale;
+                if (currentSort === 'popular' || currentSort === 'rankings') renderHome();
+            }
+            const seedP = fetch(VIEWS_FILE).then(r => r.ok ? r.json() : {}).catch(() => ({}));
+            const fbUrl = (window.siteCounter && siteCounter.dbUrl) || '';
+            const fbP = fbUrl
+                ? fetch(fbUrl + '/views.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).catch(() => null)
+                : Promise.resolve(null);
+            viewsPromise = Promise.all([seedP, fbP]).then(([seed, fb]) => {
+                // Firebase always wins; the seed and the last cache only fill
+                // the gap so chips never disappear.
+                viewCounts = (fb && Object.keys(fb).length) ? fb
+                    : (Object.keys(seed).length) ? Object.assign({}, seed, stale || {})
+                    : (stale || {});
+                saveViewsCache(viewCounts);
                 if (currentSort === 'popular' || currentSort === 'rankings') renderHome();
                 return viewCounts;
             });
+            // This visit's own clicks land in Firebase ~8s in (counter.js
+            // flush); tick the chips up without waiting for the next read.
+            if (window.siteCounter) window.siteCounter.onFlushed = (sent) => {
+                if (!sent || !sent.views) return;
+                for (const k in sent.views) viewCounts[k] = (viewCounts[k] || 0) + sent.views[k];
+                saveViewsCache(viewCounts);
+                if (currentSort === 'popular' || currentSort === 'rankings') renderHome();
+            };
             return viewsPromise;
         }
         const byViews = (a, b) => (viewCounts[b.slug] || 0) - (viewCounts[a.slug] || 0);
@@ -430,6 +469,7 @@
         function setSort(s) {
             if (!SORT_LABELS[s]) return;
             currentSort = s;
+            if (window.siteCounter) window.siteCounter.countTab(s);   // one count per tab open
             currentPage = 1;
             document.querySelectorAll('#sortTabs .sort-tab').forEach(b => b.classList.toggle('active', b.dataset.sort === s));
             const url = new URL(location.href);
@@ -646,6 +686,7 @@
             });
             updateGenreBar();
             renderHome();
+            if (window.siteCounter) window.siteCounter.countTab(currentSort);   // count the boot tab, same as fulldrama
             loadViews(); // Popular switches to most-viewed once counts arrive
 
             // Mobile only: re-parent the genre bar below the page navigation
