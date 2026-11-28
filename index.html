@@ -215,6 +215,7 @@
             </div>
             <a class="nav-link" href="index.html?sort=new">New</a>
             <a class="nav-link" href="index.html?sort=rankings">Unc3ns0r3d</a>
+            <a class="nav-link" href="index.html?sort=spicy">🌶️ Spicy</a>
         </nav>
     </header>
 
@@ -233,6 +234,7 @@
             <button class="sort-tab" data-sort="new" onclick="setSort('new')">✨ New</button>
             <button class="sort-tab active" data-sort="popular" onclick="setSort('popular')">🔥 Popular</button>
             <button class="sort-tab" data-sort="rankings" onclick="setSort('rankings')">❤️‍🔥 Unc3ns0r3d</button>
+            <button class="sort-tab" data-sort="spicy" onclick="setSort('spicy')">🌶️ Spicy</button>
         </div>
         <h2 id="sectionTitle" style="margin-bottom: 1.5rem;">Popular Dramas</h2>
         <div class="drama-grid" id="dramaGrid"></div>
@@ -280,7 +282,7 @@
         let currentPlatform = '';  // set via ?platform= deep link from the nav menu
         let currentSort = 'popular';
 
-        const SORT_LABELS = { popular: 'Popular Dramas', new: 'Latest Releases', rankings: 'Unc3ns0r3d' };
+        const SORT_LABELS = { popular: 'Popular Dramas', new: 'Latest Releases', rankings: 'Unc3ns0r3d', spicy: 'Spicy Dramas' };
 
         // Display names for the platforms in the starter drop (nav menu + card meta)
         const PLATFORM_LABELS = { reelshort: 'ReelShort', dramawave: 'DramaWave', miraluneshort: 'MiraLune Short', cinerra: 'Cinerra', flickreels: 'FlickReels', dramabox: 'DramaBox' };
@@ -523,6 +525,10 @@
             // The Unc3ns0r3d tab (the former Ratings) lists titles tagged with the genre
             if (currentSort === 'rankings') {
                 filtered = filtered.filter(d => genreNames(d).includes('Unc3ns0r3d'));
+            }
+            // The Spicy tab lists titles tagged with the "Spicy" genre in videos.json
+            if (currentSort === 'spicy') {
+                filtered = filtered.filter(d => genreNames(d).includes('Spicy'));
             }
 
             let ranked = filtered;
