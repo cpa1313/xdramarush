@@ -154,6 +154,16 @@
         .cc-btn { background: var(--bg-primary); color: var(--text-secondary); border: 1px solid #333; }
         .cc-btn.cc-on { background: var(--accent); color: white; border-color: var(--accent); }
         .episode-select { flex: 1; padding: 0.75rem; background: var(--bg-primary); color: var(--text-primary); border: 1px solid #333; border-radius: 6px; font-size: 1rem; cursor: pointer; min-width: 150px; }
+        /* Auto Next switch — off by default (an episode stops when it ends);
+           flipping it on auto-advances. The choice persists via localStorage. */
+        .auto-next { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none; margin-left: auto; }
+        .auto-next input { position: absolute; opacity: 0; pointer-events: none; }
+        .auto-next-track { width: 40px; height: 22px; border-radius: 11px; background: #333; border: 1px solid #444; position: relative; transition: background 0.2s, border-color 0.2s; flex-shrink: 0; }
+        .auto-next-knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #999; transition: left 0.2s, background 0.2s; }
+        .auto-next input:checked + .auto-next-track { background: var(--accent); border-color: var(--accent); }
+        .auto-next input:checked + .auto-next-track .auto-next-knob { left: 20px; background: white; }
+        .auto-next-label { font-size: 0.9rem; color: var(--text-secondary); font-weight: 600; }
+        .auto-next:hover .auto-next-label { color: var(--text-primary); }
 
         .episode-toggle { background: transparent; border: 1px solid var(--text-secondary); color: var(--text-secondary); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
         .episode-toggle:hover { border-color: var(--text-primary); color: var(--text-primary); }
@@ -290,6 +300,11 @@
                         <select class="episode-select" id="episodeSelect" onchange="jumpToEpisode(this.value)"></select>
                         <button class="nav-btn" id="nextBtn" onclick="changeEpisode(1)">Next ⏭</button>
                         <button class="nav-btn cc-btn" id="ccBtn" onclick="toggleCc()" title="Subtitles on/off" style="display:none">CC</button>
+                        <label class="auto-next" title="Auto Next: start the next episode automatically when one ends">
+                            <input type="checkbox" id="autoNextToggle" onchange="setAutoNext(this.checked)" aria-label="Auto Next">
+                            <span class="auto-next-track"><span class="auto-next-knob"></span></span>
+                            <span class="auto-next-label">Auto Next</span>
+                        </label>
                     </div>
                     <div class="episode-grid" id="episodeGrid"></div>
                 </div>
@@ -1138,11 +1153,23 @@
             loadVideo(parseInt(ep));
         }
 
-        // Auto-play next episode when the current one finishes. This covers
-        // Streamable sources too now: they play natively (resolved MP4), so
-        // their 'ended' reaches this listener like every other source, and
-        // the next episode starts through autoStart() above.
+        // Auto Next is OPT-IN: by default an episode stops when it ends and
+        // the viewer picks the next one themselves. The Auto Next switch in
+        // the episode bar turns auto-advance on; the choice persists per
+        // device (localStorage). This covers Streamable sources too — they
+        // play natively (resolved MP4), so their 'ended' reaches this
+        // listener like every other source, and the next episode starts
+        // through autoStart() above.
+        let autoNext = false;
+        try { autoNext = localStorage.getItem('autoNext') === '1'; } catch (e) {}
+        function setAutoNext(on) {
+            autoNext = !!on;
+            try { localStorage.setItem('autoNext', autoNext ? '1' : '0'); } catch (e) {}
+        }
+        const autoNextToggle = document.getElementById('autoNextToggle');
+        if (autoNextToggle) autoNextToggle.checked = autoNext;   // restore the saved choice
         document.getElementById('videoPlayer').addEventListener('ended', () => {
+            if (!autoNext) return;   // default: stop at the end of the episode
             const available = sources.length ? sources[0].length : 0;
             if (currentEpisode < available) {
                 loadVideo(currentEpisode + 1);
